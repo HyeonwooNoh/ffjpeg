@@ -710,8 +710,8 @@ void* jfif_encode(BMP *pb)
     // init comp_num & comp_info
     jfif->comp_num                   = 3;
     jfif->comp_info[0].id            = 1;
-    jfif->comp_info[0].samp_factor_v = 2;
-    jfif->comp_info[0].samp_factor_h = 2;
+    jfif->comp_info[0].samp_factor_v = 1;
+    jfif->comp_info[0].samp_factor_h = 1;
     jfif->comp_info[0].qtab_idx      = 0;
     jfif->comp_info[0].htab_idx_ac   = 0;
     jfif->comp_info[0].htab_idx_dc   = 0;
@@ -729,11 +729,11 @@ void* jfif_encode(BMP *pb)
     jfif->comp_info[2].htab_idx_dc   = 1;
 
     // init jw & jw, init yuv data buffer
-    jw = ALIGN(pb->width , 16);
-    jh = ALIGN(pb->height, 16);
+    jw = ALIGN(pb->width , 8);
+    jh = ALIGN(pb->height, 8);
     yuv_datbuf[0] = calloc(1, jw * jh / 1 * sizeof(int));
-    yuv_datbuf[1] = calloc(1, jw * jh / 4 * sizeof(int));
-    yuv_datbuf[2] = calloc(1, jw * jh / 4 * sizeof(int));
+    yuv_datbuf[1] = calloc(1, jw * jh / 1 * sizeof(int));
+    yuv_datbuf[2] = calloc(1, jw * jh / 1 * sizeof(int));
     if (!yuv_datbuf[0] || !yuv_datbuf[1] || !yuv_datbuf[2]) {
         goto done;
     }
@@ -748,26 +748,20 @@ void* jfif_encode(BMP *pb)
             rgb_to_yuv(bsrc[2], bsrc[1], bsrc[0], ydst, udst, vdst);
             bsrc += 3;
             ydst += 1;
-            if (j & 1) {
-                udst += 1;
-                vdst += 1;
-            }
+            udst += 1;
+            vdst += 1;
         }
         bsrc -= pb->width * 3; bsrc += pb->stride;
         ydst -= pb->width * 1; ydst += jw;
-        udst -= pb->width / 2;
-        vdst -= pb->width / 2;
-        if (i & 1) {
-            udst += jw / 2;
-            vdst += jw / 2;
-        }
+        udst -= pb->width * 1; udst += jw;
+        vdst -= pb->width * 1; vdst += jw;
     }
 
-    for (m=0; m<jh/16; m++) {
-        for (n=0; n<jw/16; n++) {
+    for (m=0; m<jh/8; m++) {
+        for (n=0; n<jw/8; n++) {
             //++ encode mcu, yuv 4:2:0
             //+ y du0
-            isrc = yuv_datbuf[0] + (m * 16 + 0) * jw + n * 16 + 0;
+            isrc = yuv_datbuf[0] + (m * 8 + 0) * jw + n * 8 + 0;
             idst = du;
             for (i=0; i<8; i++) {
                 memcpy(idst, isrc, 8 * sizeof(int));
@@ -776,56 +770,26 @@ void* jfif_encode(BMP *pb)
             jfif_encode_du(jfif, DU_TYPE_LUMIN, du, &(dc[0]));
             //- y du0
 
-            //+ y du1
-            isrc = yuv_datbuf[0] + (m * 16 + 0) * jw + n * 16 + 8;
-            idst = du;
-            for (i=0; i<8; i++) {
-                memcpy(idst, isrc, 8 * sizeof(int));
-                isrc += jw; idst += 8;
-            }
-            jfif_encode_du(jfif, DU_TYPE_LUMIN, du, &(dc[0]));
-            //- y du1
-
-            //+ y du2
-            isrc = yuv_datbuf[0] + (m * 16 + 8) * jw + n * 16 + 0;
-            idst = du;
-            for (i=0; i<8; i++) {
-                memcpy(idst, isrc, 8 * sizeof(int));
-                isrc += jw; idst += 8;
-            }
-            jfif_encode_du(jfif, DU_TYPE_LUMIN, du, &(dc[0]));
-            //- y du2
-
-            //+ y du3
-            isrc = yuv_datbuf[0] + (m * 16 + 8) * jw + n * 16 + 8;
-            idst = du;
-            for (i=0; i<8; i++) {
-                memcpy(idst, isrc, 8 * sizeof(int));
-                isrc += jw; idst += 8;
-            }
-            jfif_encode_du(jfif, DU_TYPE_LUMIN, du, &(dc[0]));
-            //- y du3
-
             //+ u du
-            isrc = yuv_datbuf[1] + m * 8 * (jw/2) + n * 8;
+            isrc = yuv_datbuf[1] + m * 8 * (jw) + n * 8;
             idst = du;
             for (i=0; i<8; i++) {
                 memcpy(idst, isrc, 8 * sizeof(int));
-                isrc += jw/2; idst += 8;
+                isrc += jw; idst += 8;
             }
             jfif_encode_du(jfif, DU_TYPE_CHROM, du, &(dc[1]));
             //- u du
 
             //+ v du
-            isrc = yuv_datbuf[2] + m * 8 * (jw/2) + n * 8;
+            isrc = yuv_datbuf[2] + m * 8 * (jw) + n * 8;
             idst = du;
             for (i=0; i<8; i++) {
                 memcpy(idst, isrc, 8 * sizeof(int));
-                isrc += jw/2; idst += 8;
+                isrc += jw; idst += 8;
             }
             jfif_encode_du(jfif, DU_TYPE_CHROM, du, &(dc[2]));
             //- v du
-            //-- encode mcu, yuv 4:2:0
+            //-- encode mcu, yuv 4:4:4
         }
     }
     failed = 0;
