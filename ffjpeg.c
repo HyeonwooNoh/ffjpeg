@@ -9,6 +9,9 @@ int main(int argc, char *argv[])
 {
     void *jfif = NULL;
     BMP   bmp  = {0};
+    int quality;
+    char *p;
+    char filename[50];
 
     if (argc < 3) {
         printf(
@@ -27,10 +30,18 @@ int main(int argc, char *argv[])
         bmp_save(&bmp, "decode.bmp");
         bmp_free(&bmp);
     } else if (strcmp(argv[1], "-e") == 0) {
+        if (argc < 4){
+            quality = 50;
+        }
+        else{
+            quality = (int) strtol(argv[3], &p, 10);
+        }
+        printf("quality: %d\n", quality);
         bmp_load(&bmp, argv[2]);
         jfif = jfif_encode(&bmp);
         bmp_free(&bmp);
-        jfif_save(jfif, "encode.jpg");
+        sprintf(filename, "encode_%d.jpg", quality);
+        jfif_save(jfif, filename);
         jfif_free(jfif);
     }
 
