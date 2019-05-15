@@ -14,7 +14,7 @@ int   jfif_save(void *ctxt, char *file);
 void  jfif_free(void *ctxt);
 
 int   jfif_decode(void *ctxt, BMP *pb);
-void* jfif_encode(BMP *pb);
+void* jfif_encode(BMP *pb, int quality);
 
 #ifdef __cplusplus
 }

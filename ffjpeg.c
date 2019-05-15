@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
         }
         printf("quality: %d\n", quality);
         bmp_load(&bmp, argv[2]);
-        jfif = jfif_encode(&bmp);
+        jfif = jfif_encode(&bmp, quality);
         bmp_free(&bmp);
         sprintf(filename, "encode_%d.jpg", quality);
         jfif_save(jfif, filename);

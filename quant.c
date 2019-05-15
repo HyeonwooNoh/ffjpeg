@@ -30,7 +30,13 @@ const int STD_QUANT_TAB_CHROM[64] =
 /* º¯ÊýÊµÏÖ */
 void quant_encode(int du[64], int qtab[64])
 {
-    int i; for (i=0; i<64; i++) du[i] /= qtab[i];
+    int i;
+    float val;
+    for (i=0; i<64; i++){
+        val = du[i];
+        val /= qtab[i];
+        du[i] = (int) (val);
+    }
 }
 
 void quant_decode(int du[64], int qtab[64])

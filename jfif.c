@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "stdefine.h"
 #include "bitstr.h"
 #include "huffman.h"
@@ -14,6 +15,8 @@
 
 // 预编译开关
 #define DEBUG_JFIF  0
+
+typedef unsigned short UINT16;
 
 // 内部类型定义
 typedef struct {
@@ -641,7 +644,85 @@ static void jfif_encode_du(JFIF *jfif, int type, int du[64], int *dc)
     }
 }
 
-void* jfif_encode(BMP *pb)
+// https://github.com/LuaDist/libjpeg/blob/6c0fcb8ddee365e7abc4d332662b06900612e923/jcparam.c#L149
+int jpeg_quality_scaling (int quality)
+/* Convert a user-specified quality rating to a percentage scaling factor
+ * for an underlying quantization table, using our recommended scaling curve.
+ * The input 'quality' factor should be 0 (terrible) to 100 (very good).
+ */
+{
+  /* Safety limit on quality factor.  Convert 0 to 1 to avoid zero divide. */
+  if (quality <= 0) quality = 1;
+  if (quality > 100) quality = 100;
+
+  /* The basic table is used as-is (scaling 100) for a quality of 50.
+   * Qualities 50..100 are converted to scaling percentage 200 - 2*Q;
+   * note that at Q=100 the scaling is 0, which will cause jpeg_add_quant_table
+   * to make all the table entries 1 (hence, minimum quantization loss).
+   * Qualities 1..50 are converted to scaling percentage 5000/Q.
+   */
+  if (quality < 50)
+    quality = 5000 / quality;
+  else
+    quality = 200 - quality*2;
+
+  return quality;
+}
+
+void jpeg_set_quality (JFIF *jfif, int quality, int force_baseline)
+/* Set or change the 'quality' (quantization) setting, using default tables.
+ * This is the standard quality-adjusting entry point for typical user
+ * interfaces; only those who want detailed control over quantization tables
+ * would use the preceding routines directly.
+ */
+{
+  /* Convert user 0-100 rating to percentage scaling */
+  int scale_quality = jpeg_quality_scaling(quality);
+
+  /* Set up standard quality tables */
+  jpeg_set_linear_quality(jfif, scale_quality, force_baseline);
+}
+
+void jpeg_set_linear_quality (JFIF *jfif, int scale_factor,
+        int force_baseline)
+/* Set or change the 'quality' (quantization) setting, using default tables
+ * and a straight percentage-scaling quality scale.  In most cases it's better
+ * to use jpeg_set_quality (below); this entry point is provided for
+ * applications that insist on a linear percentage scaling.
+ */
+{
+  /* Set up two quantization tables using the specified scaling */
+  jpeg_add_quant_table(jfif, 0, STD_QUANT_TAB_LUMIN,
+          scale_factor, force_baseline);
+  jpeg_add_quant_table(jfif, 1, STD_QUANT_TAB_CHROM,
+          scale_factor, force_baseline);
+}
+
+void jpeg_add_quant_table (JFIF *jfif, int which_tbl,
+        const int *basic_table, int scale_factor, int force_baseline)
+/* Define a quantization table equal to the basic_table times
+ * a scale factor (given as a percentage).
+ * If force_baseline is TRUE, the computed quantization table entries
+ * are limited to 1..255 for JPEG baseline compatibility.
+ */
+{
+  int ** qtblptr;
+  int i;
+  long temp;
+
+  for (i = 0; i < 64; i++) {
+    temp = ((long) basic_table[i] * scale_factor + 50L) / 100L;
+    /* limit the values to the valid range */
+    if (temp <= 0L) temp = 1L;
+    if (temp > 32767L) temp = 32767L; /* max quantizer needed for 12 bits */
+    if (force_baseline && temp > 255L){
+      temp = 255L;		/* limit to baseline range if requested */
+    }
+    jfif->pqtab[which_tbl][i] = (UINT16) temp;
+  }
+}
+
+void* jfif_encode(BMP *pb, int quality)
 {
     JFIF *jfif = NULL;
     void *bs   = NULL;
@@ -654,6 +735,7 @@ void* jfif_encode(BMP *pb)
     int   dc[4 ]= {0};
     int   i, j, m, n;
     int   failed = 1;
+    int scale_quality;
 
     // check input params
     if (!pb) {
@@ -687,8 +769,10 @@ void* jfif_encode(BMP *pb)
     }
 
     // init qtab
-    memcpy(jfif->pqtab[0], STD_QUANT_TAB_LUMIN, 64*sizeof(int));
-    memcpy(jfif->pqtab[1], STD_QUANT_TAB_CHROM, 64*sizeof(int));
+    // https://github.com/tensorflow/tensorflow/blob/72c29a3c35169486d4f6d29739a3f266234177d2/tensorflow/core/lib/jpeg/jpeg_mem.cc#L679
+    jpeg_set_quality(jfif, quality, 1);
+    //memcpy(jfif->pqtab[0], STD_QUANT_TAB_LUMIN, 64*sizeof(int));
+    //memcpy(jfif->pqtab[1], STD_QUANT_TAB_CHROM, 64*sizeof(int));
 
     // open bit stream
     bs = bitstr_open(BITSTR_MEM, (char*)jfif->databuf, (char*)jfif->datalen);

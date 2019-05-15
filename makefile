@@ -2,7 +2,7 @@
 # written by rockcarry
 
 CC      = gcc
-CCFLAGS = -Wall -fPIC
+CCFLAGS = -Wall -fPIC -lm
 
 OBJS = \
     color.o   \
